@@ -2,9 +2,11 @@
 
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useNews } from "../context/NewsContext";
 
 const AdminPage = () => {
   const router = useRouter();
+  const { addNews } = useNews();
   const [headline, setHeadline] = useState("");
   const [category, setCategory] = useState("Sports");
   const [authorName, setAuthorName] = useState("");
@@ -52,18 +54,14 @@ const AdminPage = () => {
       if (response.ok) {
         const result = await response.json();
 
+        // Add news to context (this will also broadcast to other tabs)
+        addNews(newNews);
+
         // Reset form
         setHeadline("");
         setCategory("Sports");
         setImage("");
         setContent("");
-
-        // Broadcast update event for live updates
-        if (typeof window !== "undefined" && window.BroadcastChannel) {
-          const channel = new BroadcastChannel("news-updates");
-          channel.postMessage({ type: "NEWS_ADDED", news: newNews });
-          channel.close();
-        }
 
         setMessage({
           type: "success",

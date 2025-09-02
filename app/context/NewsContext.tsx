@@ -6,8 +6,10 @@ import React, {
   useState,
   useEffect,
   ReactNode,
+  useCallback,
 } from "react";
 import { NewsItem, dummyNews } from "../discover/data/dummyNews";
+import { useBroadcastChannel } from "../../hooks/useBroadcastChannel";
 
 interface NewsContextType {
   news: NewsItem[];
@@ -34,6 +36,31 @@ export const NewsProvider: React.FC<NewsProviderProps> = ({ children }) => {
   const [news, setNews] = useState<NewsItem[]>(dummyNews);
   const [isLoading, setIsLoading] = useState(false);
 
+  // Handle broadcast messages from other tabs
+  const handleBroadcastMessage = useCallback((data: any) => {
+    switch (data.type) {
+      case "NEWS_ADDED":
+        setNews((prev) => {
+          // Check if news already exists to avoid duplicates
+          const exists = prev.some(item => item.id === data.news.id);
+          if (!exists) {
+            console.log("Adding news from broadcast:", data.news);
+            return [data.news, ...prev];
+          }
+          return prev;
+        });
+        break;
+      case "NEWS_REFRESH":
+        refreshNews();
+        break;
+      default:
+        break;
+    }
+  }, []);
+
+  // Initialize Broadcast Channel
+  const { broadcast } = useBroadcastChannel("news-updates", handleBroadcastMessage);
+
   // Fetch news from API
   const refreshNews = async () => {
     setIsLoading(true);
@@ -51,27 +78,16 @@ export const NewsProvider: React.FC<NewsProviderProps> = ({ children }) => {
     }
   };
 
-  // Add news locally
+  // Add news locally and broadcast to other tabs
   const addNews = (newsItem: NewsItem) => {
     setNews((prev) => [newsItem, ...prev]);
+    
+    // Broadcast to other tabs
+    broadcast({
+      type: "NEWS_ADDED",
+      news: newsItem
+    });
   };
-
-  // Listen for live updates using BroadcastChannel
-  useEffect(() => {
-    if (typeof window !== "undefined" && window.BroadcastChannel) {
-      const channel = new BroadcastChannel("news-updates");
-
-      channel.onmessage = (event) => {
-        if (event.data.type === "NEWS_ADDED") {
-          addNews(event.data.news);
-        }
-      };
-
-      return () => {
-        channel.close();
-      };
-    }
-  }, []);
 
   // Initial fetch
   useEffect(() => {
